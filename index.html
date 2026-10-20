@@ -1,0 +1,211 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zero Prime</title>
+
+<style>
+*{box-sizing:border-box}
+body{
+  margin:0;min-height:100vh;display:flex;
+  align-items:center;justify-content:center;padding:20px;
+  font-family:Arial,sans-serif;color:white;
+  background:linear-gradient(135deg,#020617,#12356b)
+}
+.card{
+  width:100%;max-width:420px;padding:28px;
+  background:#0b1730;border:1px solid #2563eb;
+  border-radius:18px;box-shadow:0 15px 45px #0005
+}
+h1{text-align:center;color:#38bdf8}
+p{text-align:center;color:#cbd5e1}
+input{
+  display:block;width:100%;padding:13px;margin:12px 0;
+  background:#071126;color:white;border:1px solid #334155;
+  border-radius:8px;font-size:16px
+}
+button{
+  width:100%;padding:13px;margin-top:10px;
+  background:#2563eb;color:white;border:0;
+  border-radius:8px;font-size:16px;cursor:pointer
+}
+.secondary{background:#1e293b}
+a{color:#38bdf8;cursor:pointer}
+#message{overflow-wrap:anywhere;font-size:14px}
+</style>
+</head>
+
+<body>
+<div class="card">
+  <h1>Zero Prime</h1>
+  <p>Your account, your world.</p>
+
+  <form id="authForm">
+    <input id="name" placeholder="Full Name" hidden>
+    <input id="email" type="email" placeholder="Email Address" required>
+    <input id="password" type="password" placeholder="Password"
+           minlength="6" required>
+
+    <div id="confirmWrap" hidden>
+      <input id="confirm" type="password"
+             placeholder="Confirm Password" minlength="6">
+    </div>
+
+    <button id="submit" type="submit">Login</button>
+  </form>
+
+  <button id="toggle" class="secondary" type="button">
+    Create New Account / Sign Up
+  </button>
+
+  <p><a href="#" id="forgot">Forgot Password?</a></p>
+  <p id="message" role="status" aria-live="polite"></p>
+
+  <div id="account" hidden>
+    <h2>Welcome to Zero Prime!</h2>
+    <p id="welcome"></p>
+    <button id="logout" type="button">Logout</button>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp }
+  from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
+
+import {
+  getAuth, createUserWithEmailAndPassword,
+  signInWithEmailAndPassword, sendPasswordResetEmail,
+  updateProfile, onAuthStateChanged, signOut
+} from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
+
+// Your Firebase configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyARxTG_3Pst-s1jw9fBUZzpgtySfRRWheU",
+  authDomain: "umar-prime-8fc22.firebaseapp.com",
+  projectId: "umar-prime-8fc22",
+  storageBucket: "umar-prime-8fc22.firebasestorage.app",
+  messagingSenderId: "898778734825",
+  appId: "1:898778734825:web:5aa3d6b4f48ed9424bd078",
+  measurementId: "G-QYTBC431KS"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+
+const $ = id => document.getElementById(id);
+let signup = false;
+let busy = false;
+
+function message(text, success = false) {
+  $("message").textContent = text;
+  $("message").style.color = success ? "#86efac" : "#fca5a5";
+}
+
+function setMode() {
+  signup = !signup;
+  $("name").hidden = !signup;
+  $("name").required = signup;
+  $("confirmWrap").hidden = !signup;
+  $("confirm").required = signup;
+  $("submit").textContent = signup ? "Sign Up" : "Login";
+  $("toggle").textContent = signup
+    ? "Already have an account? Login"
+    : "Create New Account / Sign Up";
+  $("forgot").parentElement.hidden = signup;
+  message("");
+}
+
+$("toggle").addEventListener("click", setMode);
+
+$("authForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  if (busy) return;
+
+  const email = $("email").value.trim();
+  const password = $("password").value;
+  busy = true;
+  $("submit").disabled = true;
+
+  try {
+    if (signup) {
+      if (password !== $("confirm").value) {
+        throw new Error("Passwords do not match.");
+      }
+
+      const result = await createUserWithEmailAndPassword(
+        auth, email, password
+      );
+
+      await updateProfile(result.user, {
+        displayName: $("name").value.trim()
+      });
+
+      message("Account created successfully!", true);
+    } else {
+      await signInWithEmailAndPassword(auth, email, password);
+      message("Login successful!", true);
+    }
+  } catch (err) {
+    const errors = {
+      "auth/email-already-in-use": "This email is already registered.",
+      "auth/invalid-email": "Please enter a valid email.",
+      "auth/weak-password": "Password must be at least 6 characters.",
+      "auth/invalid-credential": "Incorrect email or password.",
+      "auth/operation-not-allowed": "Enable Email/Password in Firebase Authentication."
+    };
+    message(errors[err.code] || err.message || "Authentication failed.");
+    console.error(err);
+  } finally {
+    busy = false;
+    $("submit").disabled = false;
+  }
+});
+
+$("forgot").addEventListener("click", async e => {
+  e.preventDefault();
+  const email = $("email").value.trim();
+
+  if (!email) {
+    message("Enter your email address first.");
+    $("email").focus();
+    return;
+  }
+
+  try {
+    await sendPasswordResetEmail(auth, email);
+    message("If the account exists, check your email for a reset link.", true);
+  } catch (err) {
+    message("Could not send reset email. Check Firebase settings.");
+    console.error(err);
+  }
+});
+
+onAuthStateChanged(auth, user => {
+  $("authForm").hidden = !!user;
+  $("toggle").hidden = !!user;
+  $("forgot").parentElement.hidden = !!user || signup;
+  $("account").hidden = !user;
+  $("welcome").textContent = user
+    ? "Signed in as " + user.email : "";
+});
+
+$("logout").addEventListener("click", async () => {
+  try {
+    await signOut(auth);
+    signup = false;
+    $("name").hidden = true;
+    $("name").required = false;
+    $("confirmWrap").hidden = true;
+    $("confirm").required = false;
+    $("submit").textContent = "Login";
+    $("toggle").textContent = "Create New Account / Sign Up";
+    message("Logged out successfully.", true);
+  } catch (err) {
+    message("Logout failed. Please try again.");
+  }
+});
+</script>
+</body>
+</html>
